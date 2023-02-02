@@ -1,0 +1,46 @@
+#!groovy
+env.submitter = ''
+env.projectid
+env.environment
+
+
+pipeline {
+    agent any
+
+    stages {
+        stage("Initialize") {
+            steps{
+                script{
+                    echo BRANCH_NAME        // fetch branch from GitLab
+                    env.projectid = sh(script: 'gcloud config get-value project', returnStdout: true).trim()
+                    echo env.projectid
+                    sh("./practice2_init.sh")
+                    if (BRANCH_NAME.contains('develop')) {
+                        env.environment = 'dev'
+                    } else if (BRANCH_NAME.contains('feature')) {
+                        env.environment = 'feature'
+                    } else {
+                        env.environment = 'prod'
+                    }
+                    echo env.environment
+                    sh("sed -i -e s/_BRANCH_NAME_/${BRANCH_NAME}/g iac/cicd-edu-cluster/configurations/${env.environment}-config.tfvars")
+                    sh("sed -i -e s/_BRANCH_NAME_/${BRANCH_NAME}/g practice2.yml")
+                }
+            }
+        }
+
+        stage("Infra Destroy") {
+            steps {
+                script {
+                    println("Infra Check")
+                    sh("""
+                        gcloud container clusters list
+                        cd ./iac/cicd-edu-cluster
+                        terraform init -backend-config="prefix=${env.environment}"
+                        terraform destroy -var-file="configurations/${env.environment}-config.tfvars" -auto-approve -no-color
+                    """)
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,26 @@
+steps:
+##### Source Test & Build #####
+- id: 'Build'
+  name: gradle:7.4.2-jdk11
+  entrypoint: gradle
+  args: ["assemble"]
+
+##### Docker Build #####
+- id : 'docker Build'
+  name: gcr.io/cloud-builders/docker
+  args: ["build", "-t", "asia.gcr.io/$PROJECT_ID/practice3:0.1", "--build-arg=JAR_FILE=build/libs/cicd-1.0.jar", "."]
+
+##### Docker Push to GCR #####
+- id : 'docker Push'
+  name: gcr.io/cloud-builders/docker
+  args: ['push', 'asia.gcr.io/$PROJECT_ID/practice3:0.1']
+
+##### Kubernetes Deploy #####
+- id : 'Kubernetes Deploy'
+  name: "gcr.io/cloud-builders/gke-deploy"
+  args:
+  - run
+  - --filename=practice3.yml
+  - --location=asia-northeast3-a
+  - --cluster=cicd-edu-cluster
+  - --timeout=25m

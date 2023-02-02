@@ -1,0 +1,81 @@
+#!groovy
+env.submitter = ''
+env.projectid = ''
+
+
+pipeline {
+    agent any
+
+    stages {
+        stage("Initialize") {
+            steps{
+                script{
+                    env.projectid = sh(script: 'gcloud config get-value project', returnStdout: true).trim()
+                    echo env.projectid
+                    sh("gcloud auth activate-service-account --key-file=/practice/credentials/${env.projectid}.json")
+                    sh("./practice2_init.sh")
+                    sh("sed -i -e s/_BRANCH_NAME_/simple/g practice2.yml")
+                }
+            }
+        }
+
+        /*************** 2-1-1. Application 빌드  ******************/
+        stage("App Build") {
+            steps {
+                script {
+                    println("******[App Build]******")
+                    //TODO 2-1-1.Application Build(gradlew)
+                    sh("./gradlew build")
+                }
+            }
+        }
+        /*************************************************************/
+
+        /******************* 2-1-2. Docker Build *********************/
+        stage("Docker Build & Push") {
+            steps {
+                script {
+                    println("******[Docker Build & Push]******")
+                    //TODO 2-1-2 Docker build
+                    sh("docker build -t asia.gcr.io/${env.projectid}/simple/practice2:0.1 .")
+                    //TODO 2-1-2 gcloud GCR auth 설정
+                    sh("echo 'Y' | gcloud auth configure-docker")
+                    //TODO 2-1-2 Docker push(simple/practice2:0.1로 push)
+                    sh("docker push asia.gcr.io/${env.projectid}/simple/practice2:0.1")
+                }
+            }
+        }
+        /*************************************************************/
+
+        /*********************** Infra Stage *************************/
+        /****************** Don't Edit This Area *********************/
+        stage("Infra Check") {
+            steps {
+                script {
+                    println("Deploy to Production Environment")
+                    sh("""
+                        cd ./iac/cicd-edu-cluster
+                        terraform init -backend-config="prefix=prod" -no-color
+                        terraform apply -var-file="configurations/prod-config.tfvars" -auto-approve -no-color
+                        gcloud container clusters list
+                    """)
+                }
+            }
+        }
+        /*************************************************************/
+
+        /*************** 2-1-3. Kubernetes Deploy ********************/
+        stage("Kubernetes Deploy") {
+            steps {
+                script {
+                    println("******[Kubernetes Deploy]******")
+                    //TODO 2-1-3. gcloud cluster get credential
+
+                    //TODO 2-1-3. kubectl apply with practice2.yml
+
+                }
+            }
+        }
+        /*************************************************************/
+    }
+}
